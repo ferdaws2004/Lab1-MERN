@@ -1,57 +1,72 @@
-const { estNonVide, estEmailValide } = require('../utils/validators');
-let users = [
-  { id: 1, name: 'Aya', email: 'aya@example.com', role: 'admin' },
-  { id: 2, name: 'Ferdaws', email: 'ferdaws@example.com', role: 'author' },
-];
-
-const getAllUsers = (req, res) => {
-  const { role } = req.query;
-  let result = users;
-  if (role) {
-    result = users.filter(u => u.role === role);
+const User = require('../models/userModel');
+const Article = require('../models/articleModel');
+const INVALID_ID = { message: 'Invalid resource identifier (ObjectId expected)' };  
+// 1. Create a new user (POST /api/users)
+const createUser = async (req, res) => {
+  try {
+    const { name, email, age, role, bio, phone } = req.body;
+    if (!name || !email) {
+      return res.status(400).json({ message: 'Name and email are required' });
+    }
+    // Check for duplicate email
+    const exists = await User.findOne({ email });
+    if (exists) {
+      return res.status(409).json({ message: 'Email already in use' });
+    }
+    const user = await User.create({ name, email, age, role,bio,phone });
+    res.status(201).json(user);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
-  res.json(result);
 };
 
-const getUserById = (req, res) => {
-  const id = Number(req.params.id);
-  const user = users.find(u => u.id === id);
-  if (!user) {
-    return res.status(404).json({ error: `User ${id} not found` });
+// 2. Retrieve all users (GET /api/users)
+const getUsers = async (req, res) => {
+  try {
+    const users = await User.find();
+    res.status(200).json(users);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
-  res.json(user);
+};
+
+// 3. Retrieve user by ID (GET /api/users/:id)
+const getUserById = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    res.status(200).json(user);
+  } catch (err) {
+    if (err.name === 'CastError') {
+      return res.status(400).json(INVALID_ID);
+    }
+    res.status(500).json({ message: err.message });
+  }
 };
 
 
-const createUser = (req, res) => {
-  const { name, email, role } = req.body;
+// DELETE /api/users/:id
+const deleteUser = async (req, res) => {
+  try {
+    // Referential integrity guard: refuse if the user authored an article
+    const hasArticles = await Article.findOne({ author: req.params.id });
+    if (hasArticles) {
+      return res.status(400).json({
+        message: 'Impossible to delete an author with published articles'
+      });
+    }
 
-  if (!estNonVide(name)) {
-    return res.status(400).json({ error: 'Name is required and cannot be empty' });
-  }
-  if (!estEmailValide(email)) {
-    return res.status(400).json({ error: 'Email is invalid (it must contain @ and .)' });
-  }
+    const user = await User.findByIdAndDelete(req.params.id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
 
-  const newId = users.length > 0 ? Math.max(...users.map(u => u.id)) + 1 : 1;
-  const newUser = { id: newId, name: name.trim(), email, role: role || 'reader' };
-  users.push(newUser);
-  res.status(201).json(newUser);
+    res.status(200).json({ message: 'User deleted successfully', id: req.params.id });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
 };
 
-const deleteUser = (req, res) => {
-  const id = Number(req.params.id);
-  const index = users.findIndex(u => u.id === id);
-  if (index === -1) {
-    return res.status(404).json({ error: `User ${id} not found` });
-  }
-  const deleted = users.splice(index, 1)[0];
-  res.json({ message: `User ${id} deleted`, user: deleted });
-};
-
-module.exports = { 
-  getAllUsers,
-  getUserById, 
-  createUser, 
-  deleteUser };
-
+module.exports = { createUser, getUsers, getUserById, deleteUser };
