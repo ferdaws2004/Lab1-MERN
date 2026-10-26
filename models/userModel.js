@@ -21,10 +21,10 @@ const userSchema = new mongoose.Schema (
     role : {
         type : String ,
         enum : {
-            values : ['user ', 'admin'] ,
+            values : ['user', 'admin'] ,
             message : '{ VALUE } is not an authorized role '
         } ,
-        default : 'user '
+        default : 'user'
     },
     bio: {
         type: String,
@@ -33,7 +33,12 @@ const userSchema = new mongoose.Schema (
     phone:{
         type: String,
         match: [/^\d{8}$/, '8-digit phone number required']
-    }
+    },
+    password : {
+        type : String ,
+        required : [true , 'Password is required '] ,
+        minlength : [6 , 'Password must be at least 6 characters long ']
+    } 
 },
 { timestamps : true } // Automatically adds createdAt and updatedAt
 ) ;
